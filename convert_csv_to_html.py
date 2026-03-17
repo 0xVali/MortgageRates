@@ -25,7 +25,6 @@ def convert_csv_to_html(csv_file_path, html_file_path, template_path):
                 credit_union_name = row_data[headers.index('CreditUnion')]
                 link = row_data[headers.index('Link')]
                 rates_raw = row_data[headers.index('Rates')] # Use new header name
-                best_rate_overall_raw = row_data[headers.index('BestRate')]
 
                 parsed_rates = []
                 if rates_raw != "None":
@@ -66,14 +65,42 @@ def convert_csv_to_html(csv_file_path, html_file_path, template_path):
                                 'yearTerm': year_term # Will be None for ARM or other types
                             })
 
+                # Determine Overall Best Program and Best Rate based on 30Year and ARM
+                best_30_year_rate = None
+                best_arm_rate = None
+                best_arm_program_full_name = "N/A"
+
+                for rate_info in parsed_rates:
+                    # Ignore 15 Year Fixed rates for Overall Best Program and Best Rate
+                    if rate_info['yearTerm'] == "15 Years":
+                        continue
+
+                    if rate_info['simplifiedType'] == "ARM" and rate_info['numericRate'] is not None:
+                        if best_arm_rate is None or rate_info['numericRate'] < best_arm_rate:
+                            best_arm_rate = rate_info['numericRate']
+                            best_arm_program_full_name = rate_info['loanTypeFull']
+                    elif rate_info['yearTerm'] == "30 Years" and rate_info['numericRate'] is not None and rate_info['simplifiedType'] != "Jumbo":
+                        if best_30_year_rate is None or rate_info['numericRate'] < best_30_year_rate:
+                            best_30_year_rate = rate_info['numericRate']
+
+                overall_best_program = "N/A"
+                final_best_rate = "N/A"
+
+                if best_30_year_rate is not None and (best_arm_rate is None or best_30_year_rate <= best_arm_rate):
+                    overall_best_program = "30Year"
+                    final_best_rate = best_30_year_rate
+                elif best_arm_rate is not None:
+                    overall_best_program = best_arm_program_full_name
+                    final_best_rate = best_arm_rate
+
                 processed_credit_unions_data.append({
                     'CreditUnion': credit_union_name,
                     'Link': link,
                     'Rates': rates_raw, # Use new header name
-                    'BestRateOverall': best_rate_overall_raw, # Keep original best rate
-                    'parsedRates': parsed_rates
+                    'OverallBestProgram': overall_best_program,
+                    'BestRate': final_best_rate,
+                    'parsedRates': parsed_rates,
                 })
-
             # Convert processed data to a URL-encoded JSON string for safe embedding in JS
             json_data_for_js_encoded = urllib.parse.quote(json.dumps(processed_credit_unions_data))
 
@@ -81,8 +108,8 @@ def convert_csv_to_html(csv_file_path, html_file_path, template_path):
         with open(template_path, mode='r', encoding='utf-8') as template_file:
             html_template = template_file.read()
 
-        # Format the template with the dynamic JSON data (no encoded JS logic needed now)
-        html_content = html_template.format(json_data_for_js_encoded=json_data_for_js_encoded)
+        # Replace the placeholder in the template with the URL-encoded JSON data
+        html_content = html_template.replace('{json_data_for_js_encoded}', json_data_for_js_encoded)
 
         with open(html_file_path, mode='w', encoding='utf-8') as outfile:
             outfile.write(html_content)
