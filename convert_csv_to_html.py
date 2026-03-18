@@ -108,8 +108,13 @@ def convert_csv_to_html(csv_file_path, html_file_path, template_path):
         with open(template_path, mode='r', encoding='utf-8') as template_file:
             html_template = template_file.read()
 
-        # Replace the placeholder in the template with the URL-encoded JSON data
+        # Get today's date and format it
+        today = datetime.date.today()
+        formatted_date = today.strftime("%Y-%m-%d") # e.g., "2026-03-17"
+
+        # Replace the placeholders in the template with the URL-encoded JSON data and the date
         html_content = html_template.replace('{json_data_for_js_encoded}', json_data_for_js_encoded)
+        html_content = html_content.replace('{{ current_date }}', formatted_date)
 
         with open(html_file_path, mode='w', encoding='utf-8') as outfile:
             outfile.write(html_content)
